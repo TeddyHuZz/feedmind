@@ -2,7 +2,7 @@ import { FeedConfig, Article, FullArticle } from './feed';
 import { AISummaryAndStudy } from './ai';
 
 const DB_NAME = 'FeedMindDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -25,6 +25,12 @@ export function initDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('aiCache')) {
         db.createObjectStore('aiCache', { keyPath: 'url' });
+      }
+      if (!db.objectStoreNames.contains('readArticles')) {
+        db.createObjectStore('readArticles', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('bookmarks')) {
+        db.createObjectStore('bookmarks', { keyPath: 'id' });
       }
     };
 
@@ -152,6 +158,56 @@ export async function saveStoredAICache(url: string, data: AISummaryAndStudy): P
   const store = await getStore('aiCache', 'readwrite');
   return new Promise((resolve, reject) => {
     const request = store.put({ url, data });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Read Articles CRUD
+export async function getReadArticleIds(): Promise<string[]> {
+  const store = await getStore('readArticles', 'readonly');
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const result = request.result || [];
+      resolve(result.map((item: any) => item.id));
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function addReadArticle(id: string): Promise<void> {
+  const store = await getStore('readArticles', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const request = store.put({ id });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Bookmarks CRUD
+export async function getBookmarkedArticles(): Promise<Article[]> {
+  const store = await getStore('bookmarks', 'readonly');
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveBookmark(article: Article): Promise<void> {
+  const store = await getStore('bookmarks', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const request = store.put(article);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function removeBookmark(id: string): Promise<void> {
+  const store = await getStore('bookmarks', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const request = store.delete(id);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });

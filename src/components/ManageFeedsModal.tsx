@@ -35,6 +35,7 @@ export const ManageFeedsModal: React.FC<ManageFeedsModalProps> = ({
   const [aiUrl, setAiUrl] = useState('');
   const [aiModel, setAiModel] = useState('');
   const [autoSummarize, setAutoSummarize] = useState(true);
+  const [enableAI, setEnableAI] = useState(true);
 
   // Load AI Settings on Mount/Open
   useEffect(() => {
@@ -45,6 +46,7 @@ export const ManageFeedsModal: React.FC<ManageFeedsModalProps> = ({
       setAiUrl(settings.baseUrl);
       setAiModel(settings.model);
       setAutoSummarize(settings.autoSummarize);
+      setEnableAI(settings.enableAI);
     }
   }, [isOpen]);
 
@@ -250,80 +252,110 @@ export const ManageFeedsModal: React.FC<ManageFeedsModalProps> = ({
           ) : (
             /* AI Settings Section */
             <section className="modal-section">
-              <h4 className="section-title">Configure API Provider</h4>
               <form onSubmit={(e) => e.preventDefault()} className="feed-form">
-                <div className="form-group">
-                  <label className="form-label">AI Provider</label>
-                  <select
-                    className="form-select"
-                    value={aiProvider}
-                    onChange={(e) => handleAIProviderChange(e.target.value as 'gemini' | 'openai')}
-                  >
-                    <option value="gemini">Gemini API (Recommended)</option>
-                    <option value="openai">OpenAI-Compatible (DeepSeek, Groq, Ollama, OpenRouter)</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">API Key</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder={aiProvider === 'gemini' ? 'AIzaSy...' : 'sk-...'}
-                    value={aiKey}
-                    onChange={(e) => {
-                      setAiKey(e.target.value);
-                      saveAISettings({ apiKey: e.target.value });
-                    }}
-                  />
-                  <span className="form-help-text" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-                    Your key is stored securely in your browser's localStorage and is never shared.
-                  </span>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Custom Base URL (Optional)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder={aiProvider === 'gemini' ? 'https://generativelanguage.googleapis.com' : 'https://api.openai.com/v1'}
-                    value={aiUrl}
-                    onChange={(e) => {
-                      setAiUrl(e.target.value);
-                      saveAISettings({ baseUrl: e.target.value });
-                    }}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Model Name (Optional)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder={aiProvider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'}
-                    value={aiModel}
-                    onChange={(e) => {
-                      setAiModel(e.target.value);
-                      saveAISettings({ model: e.target.value });
-                    }}
-                  />
-                </div>
-
-                <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
                   <input
                     type="checkbox"
-                    id="autoSummarize"
+                    id="enableAI"
                     style={{ width: 'auto', cursor: 'pointer' }}
-                    checked={autoSummarize}
+                    checked={enableAI}
                     onChange={(e) => {
-                      setAutoSummarize(e.target.checked);
-                      saveAISettings({ autoSummarize: e.target.checked });
+                      setEnableAI(e.target.checked);
+                      saveAISettings({ enableAI: e.target.checked });
                     }}
                   />
-                  <label htmlFor="autoSummarize" className="form-label" style={{ margin: 0, cursor: 'pointer', fontSize: '0.85rem' }}>
-                    Auto-generate summaries when opening articles
+                  <label htmlFor="enableAI" className="form-label" style={{ margin: 0, cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}>
+                    Enable AI Features & Summaries
                   </label>
                 </div>
+
+                {enableAI && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.2s ease' }}>
+                    <h4 className="section-title" style={{ marginTop: 0 }}>Configure API Provider</h4>
+                    <div className="form-group">
+                      <label className="form-label">AI Provider</label>
+                      <select
+                        className="form-select"
+                        value={aiProvider}
+                        onChange={(e) => handleAIProviderChange(e.target.value as 'gemini' | 'openai')}
+                      >
+                        <option value="gemini">Gemini API (Recommended)</option>
+                        <option value="openai">OpenAI-Compatible (DeepSeek, Groq, Ollama, OpenRouter)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">API Key</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        placeholder={aiProvider === 'gemini' ? 'AIzaSy...' : 'sk-...'}
+                        value={aiKey}
+                        onChange={(e) => {
+                          setAiKey(e.target.value);
+                          saveAISettings({ apiKey: e.target.value });
+                        }}
+                      />
+                      <span className="form-help-text" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                        Your key is stored securely in your browser's localStorage and is never shared.
+                      </span>
+                      {aiProvider === 'openai' && aiKey.startsWith('gsk_') && (
+                        <span className="form-help-text" style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.35rem', display: 'block', fontWeight: 500 }}>
+                          💡 Groq key detected! Defaulting URL to GroqCloud and model to llama-3.3-70b-versatile if left empty.
+                        </span>
+                      )}
+                      {aiProvider === 'openai' && aiKey.startsWith('sk-or-v1-') && (
+                        <span className="form-help-text" style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.35rem', display: 'block', fontWeight: 500 }}>
+                          💡 OpenRouter key detected! Defaulting URL to OpenRouter and model to google/gemini-2.5-flash if left empty.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Custom Base URL (Optional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder={aiProvider === 'gemini' ? 'https://generativelanguage.googleapis.com' : 'https://api.openai.com/v1'}
+                        value={aiUrl}
+                        onChange={(e) => {
+                          setAiUrl(e.target.value);
+                          saveAISettings({ baseUrl: e.target.value });
+                        }}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Model Name (Optional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder={aiProvider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'}
+                        value={aiModel}
+                        onChange={(e) => {
+                          setAiModel(e.target.value);
+                          saveAISettings({ model: e.target.value });
+                        }}
+                      />
+                    </div>
+
+                    <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <input
+                        type="checkbox"
+                        id="autoSummarize"
+                        style={{ width: 'auto', cursor: 'pointer' }}
+                        checked={autoSummarize}
+                        onChange={(e) => {
+                          setAutoSummarize(e.target.checked);
+                          saveAISettings({ autoSummarize: e.target.checked });
+                        }}
+                      />
+                      <label htmlFor="autoSummarize" className="form-label" style={{ margin: 0, cursor: 'pointer', fontSize: '0.85rem' }}>
+                        Auto-generate summaries when opening articles
+                      </label>
+                    </div>
+                  </div>
+                )}
               </form>
             </section>
           )}

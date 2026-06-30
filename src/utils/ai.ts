@@ -21,6 +21,7 @@ export interface AISettings {
   baseUrl: string;
   model: string;
   autoSummarize: boolean;
+  enableAI: boolean;
 }
 
 export function getAISettings(): AISettings {
@@ -29,13 +30,15 @@ export function getAISettings(): AISettings {
   const baseUrl = localStorage.getItem('feedmind_ai_url') || '';
   const model = localStorage.getItem('feedmind_ai_model') || '';
   const autoSummarize = localStorage.getItem('feedmind_ai_auto_summarize') !== 'false';
+  const enableAI = localStorage.getItem('feedmind_ai_enabled') !== 'false';
 
   return {
     provider,
     apiKey,
     baseUrl,
     model,
-    autoSummarize
+    autoSummarize,
+    enableAI
   };
 }
 
@@ -45,6 +48,7 @@ export function saveAISettings(settings: Partial<AISettings>) {
   if (settings.baseUrl !== undefined) localStorage.setItem('feedmind_ai_url', settings.baseUrl);
   if (settings.model !== undefined) localStorage.setItem('feedmind_ai_model', settings.model);
   if (settings.autoSummarize !== undefined) localStorage.setItem('feedmind_ai_auto_summarize', String(settings.autoSummarize));
+  if (settings.enableAI !== undefined) localStorage.setItem('feedmind_ai_enabled', String(settings.enableAI));
 }
 
 export async function generateAISummaryAndStudy(title: string, textContent: string): Promise<AISummaryAndStudy> {
@@ -144,9 +148,30 @@ Ensure the output is valid, parsable JSON matching this schema exactly.`;
 
     return parseJSONResponse(text);
   } else {
-    // OpenAI-Compatible Provider
-    const model = settings.model || 'gpt-4o-mini';
-    const host = settings.baseUrl || 'https://api.openai.com/v1';
+    // OpenAI-Compatible Provider (with auto-detection for Groq & OpenRouter keys)
+    let host = settings.baseUrl;
+    let model = settings.model;
+
+    if (!host) {
+      if (settings.apiKey.startsWith('gsk_')) {
+        host = 'https://api.groq.com/openai/v1';
+      } else if (settings.apiKey.startsWith('sk-or-v1-')) {
+        host = 'https://openrouter.ai/api/v1';
+      } else {
+        host = 'https://api.openai.com/v1';
+      }
+    }
+
+    if (!model) {
+      if (settings.apiKey.startsWith('gsk_')) {
+        model = 'llama-3.3-70b-versatile';
+      } else if (settings.apiKey.startsWith('sk-or-v1-')) {
+        model = 'google/gemini-2.5-flash';
+      } else {
+        model = 'gpt-4o-mini';
+      }
+    }
+
     const url = `${host}/chat/completions`;
 
     const response = await fetch(url, {

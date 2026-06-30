@@ -391,6 +391,32 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
+.reader-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--bg-card);
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  font-family: monospace;
+  font-size: 0.85rem;
+  margin: 1.5rem 0;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.reader-content code {
+  font-family: monospace;
+  background: var(--bg-accent);
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  word-break: break-all;
+  color: var(--color-primary-hover);
+}
+
 /* AI Summary Section */
 .ai-summary-box {
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%);
@@ -1249,5 +1275,260 @@ h1, h2, h3, h4, h5, h6 {
 .quiz-option.disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* RSS Core Read/Unread and Bookmark Enhancements */
+.article-card.read {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.article-card.read:hover {
+  opacity: 0.85;
+}
+
+.article-card.read .article-title {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.article-card.read .article-snippet {
+  color: var(--text-muted);
+}
+
+.sub-article-item.read {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.sub-article-item.read:hover {
+  opacity: 0.85;
+}
+
+.sub-article-item.read .sub-title {
+  color: var(--text-secondary);
+}
+
+.unread-dot {
+  box-shadow: 0 0 8px var(--color-primary);
+  animation: pulse-dot 2s infinite;
+}
+
+.unread-dot-sub {
+  box-shadow: 0 0 6px var(--color-primary);
+}
+
+.bookmark-btn {
+  transform-origin: center;
+}
+
+.bookmark-btn:hover {
+  transform: scale(1.2);
+}
+
+.bookmark-btn:active {
+  transform: scale(0.9);
+}
+
+@keyframes pulse-dot {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  70% {
+    transform: scale(1.1);
+    opacity: 0.8;
+    box-shadow: 0 0 0 6px rgba(139, 92, 246, 0);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+/* Desktop styling helper classes */
+.top-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+}
+
+/* Mobile & Tablet Responsiveness */
+.menu-toggle-btn {
+  display: none;
+}
+
+.sidebar-close-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .menu-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .menu-toggle-btn:hover {
+    background: var(--bg-accent);
+  }
+
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    margin-left: auto;
+    border-radius: 50%;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .sidebar-close-btn:hover {
+    background: var(--bg-surface);
+    color: #fff;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid var(--border-color);
+    box-shadow: 10px 0 25px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 1rem !important;
+    overflow-x: hidden; /* Ensure vertical content never overflows container width */
+  }
+
+  .top-bar {
+    position: relative !important; /* Non-sticky so it scrolls away and doesn't eat screen space */
+    height: auto !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 0.75rem 0.5rem !important;
+    background: var(--bg-surface) !important;
+  }
+
+  .search-bar-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    order: 2;
+  }
+
+  .top-bar-controls {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    order: 3;
+  }
+
+  .sort-select {
+    flex: 1 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .icon-btn {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    justify-content: center !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .btn-text {
+    display: none !important;
+  }
+
+  .article-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+
+  .reader-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-left: none !important;
+    box-shadow: none !important;
+    z-index: 1001;
+  }
+
+  .reader-body {
+    padding: 1.5rem 1rem !important;
+  }
+}
+
+.footer-link-btn {
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.footer-link-btn:hover {
+  color: #fff !important;
+  text-decoration: underline;
+}
+
+/* Hide self-referencing page anchor links inside headings */
+.reader-content h1 a[href^="#"],
+.reader-content h2 a[href^="#"],
+.reader-content h3 a[href^="#"],
+.reader-content h4 a[href^="#"],
+.reader-content h5 a[href^="#"],
+.reader-content h6 a[href^="#"],
+.reader-content a.anchor,
+.reader-content a.hash-link,
+.reader-content a.header-anchor,
+.reader-content a.heading-anchor {
+  display: none !important;
+}
+
+/* Screen-reader only class overrides to hide visual leakage of accessibility descriptions */
+.reader-content .sr-only,
+.reader-content .visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 

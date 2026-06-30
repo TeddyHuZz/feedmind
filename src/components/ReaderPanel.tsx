@@ -53,7 +53,7 @@ export const ReaderPanel: React.FC<ReaderPanelProps> = ({
           
           // Auto-summarize in background if enabled and key is configured
           const settings = getAISettings();
-          if (settings.autoSummarize && settings.apiKey) {
+          if (settings.enableAI && settings.autoSummarize && settings.apiKey) {
             triggerAIFetch(article.title, data.textContent || data.excerpt || article.contentSnippet);
           }
         })
@@ -70,7 +70,7 @@ export const ReaderPanel: React.FC<ReaderPanelProps> = ({
           setLoading(false);
           
           const settings = getAISettings();
-          if (settings.autoSummarize && settings.apiKey) {
+          if (settings.enableAI && settings.autoSummarize && settings.apiKey) {
             triggerAIFetch(article.title, fallbackData.textContent);
           }
         });
@@ -164,34 +164,36 @@ export const ReaderPanel: React.FC<ReaderPanelProps> = ({
         </div>
 
         {/* Reader tabs */}
-        <div className="reader-tabs" style={{
-          display: 'flex',
-          borderBottom: '1px solid var(--border-color)',
-          background: 'var(--bg-surface)',
-          padding: '0 2rem'
-        }}>
-          <button 
-            className={`reader-tab ${activeTab === 'article' ? 'active' : ''}`}
-            onClick={() => handleTabChange('article')}
-          >
-            <BookOpen size={14} />
-            <span>Article</span>
-          </button>
-          <button 
-            className={`reader-tab ${activeTab === 'summary' ? 'active' : ''}`}
-            onClick={() => handleTabChange('summary')}
-          >
-            <Sparkles size={14} />
-            <span>AI Summary</span>
-          </button>
-          <button 
-            className={`reader-tab ${activeTab === 'study' ? 'active' : ''}`}
-            onClick={() => handleTabChange('study')}
-          >
-            <GraduationCap size={14} />
-            <span>Study Assistant</span>
-          </button>
-        </div>
+        {settings.enableAI && (
+          <div className="reader-tabs" style={{
+            display: 'flex',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'var(--bg-surface)',
+            padding: '0 2rem'
+          }}>
+            <button 
+              className={`reader-tab ${activeTab === 'article' ? 'active' : ''}`}
+              onClick={() => handleTabChange('article')}
+            >
+              <BookOpen size={14} />
+              <span>Article</span>
+            </button>
+            <button 
+              className={`reader-tab ${activeTab === 'summary' ? 'active' : ''}`}
+              onClick={() => handleTabChange('summary')}
+            >
+              <Sparkles size={14} />
+              <span>AI Summary</span>
+            </button>
+            <button 
+              className={`reader-tab ${activeTab === 'study' ? 'active' : ''}`}
+              onClick={() => handleTabChange('study')}
+            >
+              <GraduationCap size={14} />
+              <span>Study Assistant</span>
+            </button>
+          </div>
+        )}
 
         {/* Reader body */}
         <div className="reader-body" ref={bodyRef}>

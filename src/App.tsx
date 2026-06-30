@@ -3,9 +3,11 @@ import { FeedSidebar } from './components/FeedSidebar';
 import { ArticleCard } from './components/ArticleCard';
 import { ReaderPanel } from './components/ReaderPanel';
 import { ManageFeedsModal } from './components/ManageFeedsModal';
+import { PolicyModal } from './components/PolicyModal';
 import { Article, FeedConfig, fetchFeedArticles, loadFeedsConfig, addCustomFeed, removeCustomFeed, resetDefaultFeeds } from './utils/feed';
 import { clusterArticles } from './utils/clustering';
-import { RefreshCw, Newspaper, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { RefreshCw, Newspaper, ChevronLeft, ChevronRight, Search, X, Eye, EyeOff, Menu } from 'lucide-react';
+import { getReadArticleIds, addReadArticle, getBookmarkedArticles, saveBookmark, removeBookmark } from './utils/db';
 
 export const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -28,6 +30,29 @@ export const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Read / Bookmark / Filtering States
+  const [readArticleIds, setReadArticleIds] = useState<Set<string>>(new Set());
+  const [bookmarkedArticles, setBookmarkedArticles] = useState<Article[]>([]);
+  const [hideRead, setHideRead] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [policyModalType, setPolicyModalType] = useState<'terms' | 'privacy' | null>(null);
+
+  // Load user data on mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const readIds = await getReadArticleIds();
+        setReadArticleIds(new Set(readIds));
+
+        const bookmarks = await getBookmarkedArticles();
+        setBookmarkedArticles(bookmarks);
+      } catch (err) {
+        console.error("Failed to load user read/bookmarks data:", err);
+      }
+    };
+    loadUserData();
+  }, []);
+
   // Reset page when category, articles, search, or sorting changes
   useEffect(() => {
     setCurrentPage(1);
@@ -35,7 +60,7 @@ export const App: React.FC = () => {
 
   // Disable background scrolling when modal or reader panel is open
   useEffect(() => {
-    if (isSettingsOpen || isReaderOpen) {
+    if (isSettingsOpen || isReaderOpen || policyModalType !== null) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -43,7 +68,7 @@ export const App: React.FC = () => {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isSettingsOpen, isReaderOpen]);
+  }, [isSettingsOpen, isReaderOpen, policyModalType]);
 
   // Load feeds config from IndexedDB
   const loadFeeds = async () => {
@@ -180,8 +205,15 @@ export const App: React.FC = () => {
 
   // Filter, sort, and cluster articles using useMemo to optimize rendering performance
   const clusteredArticles = React.useMemo(() => {
-    const filtered = articles.filter(art => {
-      const matchesCategory = activeCategory === 'All' || art.category === activeCategory;
+    const sourceArticles = activeCategory === 'Bookmarks' ? bookmarkedArticles : articles;
+
+    const filtered = sourceArticles.filter(art => {
+      const matchesCategory = activeCategory === 'All' || activeCategory === 'Bookmarks' || art.category === activeCategory;
+      
+      if (hideRead && activeCategory !== 'Bookmarks' && readArticleIds.has(art.id)) {
+        return false;
+      }
+
       const matchesSearch = searchQuery.trim() === '' || 
         art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         art.contentSnippet.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -204,11 +236,38 @@ export const App: React.FC = () => {
     });
 
     return clusterArticles(sorted);
-  }, [articles, activeCategory, searchQuery, sortBy]);
+  }, [articles, bookmarkedArticles, readArticleIds, activeCategory, searchQuery, sortBy, hideRead]);
 
-  const handleSelectArticle = (article: Article) => {
+  const handleSelectArticle = async (article: Article) => {
     setSelectedArticle(article);
     setIsReaderOpen(true);
+    if (!readArticleIds.has(article.id)) {
+      try {
+        await addReadArticle(article.id);
+        setReadArticleIds(prev => {
+          const next = new Set(prev);
+          next.add(article.id);
+          return next;
+        });
+      } catch (err) {
+        console.error("Failed to save read state:", err);
+      }
+    }
+  };
+
+  const handleToggleBookmark = async (article: Article) => {
+    const isBookmarked = bookmarkedArticles.some(b => b.id === article.id);
+    try {
+      if (isBookmarked) {
+        await removeBookmark(article.id);
+        setBookmarkedArticles(prev => prev.filter(b => b.id !== article.id));
+      } else {
+        await saveBookmark(article);
+        setBookmarkedArticles(prev => [...prev, article]);
+      }
+    } catch (err) {
+      console.error("Failed to toggle bookmark:", err);
+    }
   };
 
   const totalPages = Math.ceil(clusteredArticles.length / pageSize);
@@ -274,22 +333,47 @@ export const App: React.FC = () => {
       {/* Sidebar Navigation */}
       <FeedSidebar
         activeCategory={activeCategory}
-        onSelectCategory={setActiveCategory}
+        onSelectCategory={(cat) => {
+          setActiveCategory(cat);
+          setIsMobileSidebarOpen(false);
+        }}
         feedStatus={feedStatus}
         feeds={feeds}
-        onOpenManageFeeds={() => setIsSettingsOpen(true)}
+        onOpenManageFeeds={() => {
+          setIsSettingsOpen(true);
+          setIsMobileSidebarOpen(false);
+        }}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
+
+      {/* Backdrop overlay for mobile sidebar drawer */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="sidebar-backdrop" 
+          onClick={() => setIsMobileSidebarOpen(false)} 
+        />
+      )}
 
       {/* Main Dashboard Area */}
       <main className="main-content">
         <header className="top-bar">
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-              {activeCategory} Articles
-            </h2>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              {loading ? 'Syncing articles...' : `Showing ${clusteredArticles.length} stories from ${feeds.filter(f => activeCategory === 'All' || f.category === activeCategory).length} sources`}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              className="menu-toggle-btn"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              aria-label="Open sidebar menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                {activeCategory} Articles
+              </h2>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {loading ? 'Syncing articles...' : `Showing ${clusteredArticles.length} stories from ${feeds.filter(f => activeCategory === 'All' || activeCategory === 'Bookmarks' || f.category === activeCategory).length} sources`}
+              </span>
+            </div>
           </div>
 
           {/* Global Search Bar */}
@@ -309,7 +393,7 @@ export const App: React.FC = () => {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="top-bar-controls">
             {/* Sorting controls */}
             <select
               value={sortBy}
@@ -321,12 +405,24 @@ export const App: React.FC = () => {
               <option value="readTime">Reading Time</option>
             </select>
 
+            {/* Hide Read toggle (not applicable on Bookmarks tab) */}
+            {activeCategory !== 'Bookmarks' && (
+              <button
+                onClick={() => setHideRead(prev => !prev)}
+                className={`btn icon-btn ${hideRead ? 'btn-primary' : 'btn-secondary'}`}
+                title={hideRead ? "Show all articles" : "Hide read articles"}
+              >
+                {hideRead ? <EyeOff size={14} /> : <Eye size={14} />}
+                <span className="btn-text">{hideRead ? "Unread Only" : "Show Read"}</span>
+              </button>
+            )}
+
             {/* Refresh Button */}
             <button
               onClick={() => fetchArticles(true)}
-              className="btn btn-secondary"
+              className="btn icon-btn btn-secondary"
               disabled={loading || refreshing}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.85rem' }}
+              title="Refresh feeds"
             >
               <RefreshCw 
                 size={14} 
@@ -334,7 +430,7 @@ export const App: React.FC = () => {
                   animation: (loading || refreshing) ? 'spin-loader 1s linear infinite' : 'none' 
                 }} 
               />
-              <span>Refresh</span>
+              <span className="btn-text">Refresh</span>
             </button>
           </div>
         </header>
@@ -379,6 +475,10 @@ export const App: React.FC = () => {
                     key={article.id}
                     article={article}
                     onSelectArticle={handleSelectArticle}
+                    isRead={readArticleIds.has(article.id)}
+                    isBookmarked={bookmarkedArticles.some(b => b.id === article.id)}
+                    onToggleBookmark={handleToggleBookmark}
+                    readArticleIds={readArticleIds}
                   />
                 ))}
               </div>
@@ -432,6 +532,41 @@ export const App: React.FC = () => {
             </>
           )}
         </section>
+
+        {/* Footer Section */}
+        <footer className="app-footer" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2.5rem 1.5rem 1.5rem 1.5rem',
+          marginTop: 'auto',
+          borderTop: '1px solid var(--border-color)',
+          color: 'var(--text-muted)',
+          fontSize: '0.75rem',
+          gap: '0.5rem',
+          textAlign: 'center',
+          width: '100%'
+        }}>
+          <p>© {new Date().getFullYear()} FeedMind. All rights reserved.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button 
+              onClick={() => setPolicyModalType('terms')} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, fontSize: '0.75rem', transition: 'color 0.2s ease' }}
+              className="footer-link-btn"
+            >
+              Terms of Service
+            </button>
+            <span style={{ opacity: 0.3 }}>•</span>
+            <button 
+              onClick={() => setPolicyModalType('privacy')} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, fontSize: '0.75rem', transition: 'color 0.2s ease' }}
+              className="footer-link-btn"
+            >
+              Privacy Policy
+            </button>
+          </div>
+        </footer>
       </main>
 
       {/* Settings Panel Modal */}
@@ -458,6 +593,14 @@ export const App: React.FC = () => {
           setIsSettingsOpen(true);
         }}
       />
+
+      {/* Terms & Privacy Overlay Modals */}
+      {policyModalType && (
+        <PolicyModal 
+          type={policyModalType}
+          onClose={() => setPolicyModalType(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,17 +1,35 @@
 import React from 'react';
-import { Calendar, User, Layers, BookOpen } from 'lucide-react';
+import { Calendar, User, Layers, BookOpen, Star } from 'lucide-react';
 import { Article } from '../utils/feed';
 import { ClusteredArticle } from '../utils/clustering';
 
 interface ArticleCardProps {
   article: ClusteredArticle;
   onSelectArticle: (article: Article) => void;
+  isRead: boolean;
+  isBookmarked: boolean;
+  onToggleBookmark: (article: Article) => void;
+  readArticleIds: Set<string>;
 }
 
 export const ArticleCard: React.FC<ArticleCardProps> = ({
   article,
-  onSelectArticle
+  onSelectArticle,
+  isRead,
+  isBookmarked,
+  onToggleBookmark,
+  readArticleIds
 }) => {
+  // Format creator to handle multiple authors beautifully
+  const formatCreator = (creator: string) => {
+    if (!creator) return 'Unknown';
+    const parts = creator.split(/, |; | and /);
+    if (parts.length > 1) {
+      return `${parts[0].trim()} et al.`;
+    }
+    return creator;
+  };
+
   // Format date to a friendly relative time
   const getRelativeTime = (dateStr: string) => {
     try {
@@ -46,7 +64,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
 
   return (
     <div className="cluster-card">
-      <article className="article-card" onClick={() => onSelectArticle(article)}>
+      <article className={`article-card ${isRead ? 'read' : ''}`} onClick={() => onSelectArticle(article)}>
         <div className="article-header">
           <span className="feed-badge">{article.feedTitle}</span>
           
@@ -60,12 +78,62 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             {getReadTime(article.content || article.contentSnippet)}
           </span>
 
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
-            <User size={12} />
-            {article.creator}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto', minWidth: 0 }}>
+            <span 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.2rem',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100px',
+                flexShrink: 1
+              }}
+              title={article.creator}
+            >
+              <User size={12} style={{ flexShrink: 0 }} />
+              <span>{formatCreator(article.creator)}</span>
+            </span>
+            <button 
+              className={`bookmark-btn ${isBookmarked ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleBookmark(article);
+              }}
+              title={isBookmarked ? "Remove bookmark" : "Bookmark story"}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer', 
+                padding: '2px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                color: isBookmarked ? '#F59E0B' : 'var(--text-secondary)',
+                transition: 'transform 0.15s ease, color 0.15s ease'
+              }}
+            >
+              <Star size={14} fill={isBookmarked ? '#F59E0B' : 'none'} />
+            </button>
           </span>
         </div>
-        <h2 className="article-title">{article.title}</h2>
+        <h2 className="article-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {!isRead && (
+            <span 
+              className="unread-dot" 
+              title="Unread" 
+              style={{ 
+                width: '8px', 
+                height: '8px', 
+                borderRadius: '50%', 
+                background: 'var(--color-primary)', 
+                display: 'inline-block',
+                flexShrink: 0
+              }}
+            />
+          )}
+          <span>{article.title}</span>
+        </h2>
         <p className="article-snippet">{article.contentSnippet}</p>
       </article>
 
@@ -76,25 +144,43 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             <Layers size={12} />
             <span>Related Coverage ({article.subArticles.length})</span>
           </div>
-          {article.subArticles.map((sub) => (
-            <div 
-              key={sub.id} 
-              className="sub-article-item" 
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectArticle(sub);
-              }}
-            >
-              <h4 className="sub-title">{sub.title}</h4>
-              <div className="sub-meta">
-                <span>{sub.feedTitle}</span>
-                <span>•</span>
-                <span>{getRelativeTime(sub.pubDate)}</span>
-                <span>•</span>
-                <span>{getReadTime(sub.content || sub.contentSnippet)}</span>
+          {article.subArticles.map((sub) => {
+            const isSubRead = readArticleIds.has(sub.id);
+            return (
+              <div 
+                key={sub.id} 
+                className={`sub-article-item ${isSubRead ? 'read' : ''}`} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectArticle(sub);
+                }}
+              >
+                <h4 className="sub-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {!isSubRead && (
+                    <span 
+                      className="unread-dot-sub" 
+                      style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        background: 'var(--color-primary)', 
+                        display: 'inline-block',
+                        flexShrink: 0
+                      }}
+                    />
+                  )}
+                  <span>{sub.title}</span>
+                </h4>
+                <div className="sub-meta">
+                  <span>{sub.feedTitle}</span>
+                  <span>•</span>
+                  <span>{getRelativeTime(sub.pubDate)}</span>
+                  <span>•</span>
+                  <span>{getReadTime(sub.content || sub.contentSnippet)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

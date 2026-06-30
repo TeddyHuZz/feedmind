@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Code, Compass, Layers, CheckCircle2, AlertCircle, RefreshCw, Settings, BookOpen, GraduationCap, Laptop } from 'lucide-react';
+import { Sparkles, Code, Compass, Layers, CheckCircle2, AlertCircle, RefreshCw, Settings, BookOpen, GraduationCap, Laptop, Star, X } from 'lucide-react';
 import { FeedConfig } from '../utils/feed';
 
 export const FeedMindLogo: React.FC<{ className?: string; size?: number }> = ({ className, size = 32 }) => (
@@ -45,6 +45,8 @@ interface FeedSidebarProps {
   feedStatus: Record<string, 'loading' | 'success' | 'error'>;
   feeds: FeedConfig[];
   onOpenManageFeeds: () => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const FeedSidebar: React.FC<FeedSidebarProps> = ({
@@ -52,10 +54,13 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
   onSelectCategory,
   feedStatus,
   feeds,
-  onOpenManageFeeds
+  onOpenManageFeeds,
+  isMobileOpen = false,
+  onCloseMobile
 }) => {
   const standardCategoryMap: Record<string, React.ReactNode> = {
     'All': <Layers size={18} />,
+    'Bookmarks': <Star size={18} />,
     'Artificial Intelligence': <Sparkles size={18} />,
     'Software Engineering': <Code size={18} />,
     'Design & Frontend': <Laptop size={18} />,
@@ -67,6 +72,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
 
   const categories = [
     { name: 'All', icon: <Layers size={18} /> },
+    { name: 'Bookmarks', icon: <Star size={18} /> },
     ...dynamicCategoryNames.map(name => ({
       name,
       icon: standardCategoryMap[name] || <BookOpen size={18} />
@@ -74,7 +80,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isMobileOpen ? 'open' : ''}`}>
       {/* Self-contained spin animation stylesheet */}
       <style>{`
         @keyframes spin-loader {
@@ -84,8 +90,17 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
       `}</style>
 
       <div className="sidebar-brand">
-        <FeedMindLogo size={32} />
-        <span className="sidebar-title">FeedMind</span>
+        <FeedMindLogo />
+        <h1 className="sidebar-title">FeedMind</h1>
+        {onCloseMobile && (
+          <button 
+            className="sidebar-close-btn" 
+            onClick={onCloseMobile}
+            aria-label="Close sidebar menu"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <ul className="sidebar-menu">
