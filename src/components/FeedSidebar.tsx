@@ -1,6 +1,43 @@
 import React from 'react';
-import { Sparkles, Code, Globe, Layers, CheckCircle2, AlertCircle, RefreshCw, Settings, BookOpen } from 'lucide-react';
+import { Sparkles, Code, Compass, Layers, CheckCircle2, AlertCircle, RefreshCw, Settings, BookOpen, GraduationCap, Laptop } from 'lucide-react';
 import { FeedConfig } from '../utils/feed';
+
+export const FeedMindLogo: React.FC<{ className?: string; size?: number }> = ({ className, size = 32 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    style={{ borderRadius: 8, flexShrink: 0 }}
+  >
+    <defs>
+      <linearGradient id="brand-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+        <stop stopColor="var(--color-primary)" />
+        <stop offset="0.5" stopColor="#A78BFA" />
+        <stop offset="1" stopColor="var(--color-secondary)" />
+      </linearGradient>
+    </defs>
+    
+    {/* Base squircle gradient shape */}
+    <rect width="32" height="32" rx="8" fill="url(#brand-gradient)" />
+    
+    {/* Interconnected neural/RSS waves nodes */}
+    <circle cx="12" cy="12" r="2.2" fill="white" />
+    <circle cx="12" cy="20" r="1.8" fill="white" />
+    <circle cx="20" cy="12" r="2.2" fill="white" />
+    <circle cx="20" cy="20" r="1.8" fill="white" />
+    <circle cx="16" cy="9" r="1.5" fill="white" fillOpacity="0.8" />
+    
+    {/* Connections */}
+    <path d="M12 12L16 9L20 12" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.8" />
+    <path d="M12 12V20" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M20 12V20" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M12 16H20" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 20C14 21.5 18 21.5 20 20" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
 
 interface FeedSidebarProps {
   activeCategory: string;
@@ -19,9 +56,11 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
 }) => {
   const standardCategoryMap: Record<string, React.ReactNode> = {
     'All': <Layers size={18} />,
-    'AI & Research': <Sparkles size={18} />,
-    'Dev & Design': <Code size={18} />,
-    'Tech & Science': <Globe size={18} />
+    'Artificial Intelligence': <Sparkles size={18} />,
+    'Software Engineering': <Code size={18} />,
+    'Design & Frontend': <Laptop size={18} />,
+    'Tech News & Startups': <Compass size={18} />,
+    'Science & Research': <GraduationCap size={18} />
   };
 
   const dynamicCategoryNames = Array.from(new Set(feeds.map(f => f.category)));
@@ -45,18 +84,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
       `}</style>
 
       <div className="sidebar-brand">
-        <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontWeight: 'bold',
-          fontSize: '1.1rem'
-        }}>F</div>
+        <FeedMindLogo size={32} />
         <span className="sidebar-title">FeedMind</span>
       </div>
 

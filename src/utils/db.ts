@@ -1,7 +1,8 @@
 import { FeedConfig, Article, FullArticle } from './feed';
+import { AISummaryAndStudy } from './ai';
 
 const DB_NAME = 'FeedMindDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -21,6 +22,9 @@ export function initDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('fullArticles')) {
         db.createObjectStore('fullArticles', { keyPath: 'url' });
+      }
+      if (!db.objectStoreNames.contains('aiCache')) {
+        db.createObjectStore('aiCache', { keyPath: 'url' });
       }
     };
 
@@ -133,3 +137,23 @@ export async function saveStoredFullArticle(url: string, article: FullArticle): 
     request.onerror = () => reject(request.error);
   });
 }
+
+// AI Summary & Study Cache CRUD
+export async function getStoredAICache(url: string): Promise<AISummaryAndStudy | null> {
+  const store = await getStore('aiCache', 'readonly');
+  return new Promise((resolve) => {
+    const request = store.get(url);
+    request.onsuccess = () => resolve(request.result ? request.result.data : null);
+    request.onerror = () => resolve(null); // Fallback on database error
+  });
+}
+
+export async function saveStoredAICache(url: string, data: AISummaryAndStudy): Promise<void> {
+  const store = await getStore('aiCache', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const request = store.put({ url, data });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { FeedSidebar } from './components/FeedSidebar';
 import { ArticleCard } from './components/ArticleCard';
 import { ReaderPanel } from './components/ReaderPanel';
-import { FEEDS, Article, fetchFeedArticles } from './utils/feed';
-import { RefreshCw, Newspaper, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ManageFeedsModal } from './components/ManageFeedsModal';
+import { Article, FeedConfig, fetchFeedArticles, loadFeedsConfig, addCustomFeed, removeCustomFeed, resetDefaultFeeds } from './utils/feed';
+import { clusterArticles } from './utils/clustering';
+import { RefreshCw, Newspaper, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -14,38 +16,79 @@ export const App: React.FC = () => {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isReaderOpen, setIsReaderOpen] = useState(false);
 
+  // Dynamic feeds config
+  const [feeds, setFeeds] = useState<FeedConfig[]>([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Search & Sorting States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'readTime'>('newest');
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Reset page when category or articles change
+  // Reset page when category, articles, search, or sorting changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeCategory, articles]);
+  }, [activeCategory, articles, searchQuery, sortBy]);
 
-  // Load feeds incrementally
-  const fetchArticles = async (force = false) => {
+  // Disable background scrolling when modal or reader panel is open
+  useEffect(() => {
+    if (isSettingsOpen || isReaderOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSettingsOpen, isReaderOpen]);
+
+  // Load feeds config from IndexedDB
+  const loadFeeds = async () => {
+    const config = await loadFeedsConfig();
+    setFeeds(config);
+    return config;
+  };
+
+  // Fetch articles from feeds list
+  const fetchArticles = async (force = false, currentFeeds?: FeedConfig[]) => {
     if (force) {
       setRefreshing(true);
     } else {
       setLoading(true);
     }
 
-    // Try parsing from sessionStorage first
+    const feedsToFetch = currentFeeds || feeds;
+    if (feedsToFetch.length === 0) {
+      setArticles([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    // Try parsing from sessionStorage first (only if not forcing refresh)
     if (!force) {
       const cached = sessionStorage.getItem('feedmind_articles');
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          setArticles(parsed);
+          // Make sure cached items match current active feeds URLs
+          const feedUrls = new Set(feedsToFetch.map(f => f.url));
+          const validCached = parsed.filter((art: Article) => feedUrls.has(art.link) || feedsToFetch.some(f => f.title === art.feedTitle));
           
-          const statusMap: Record<string, 'success'> = {};
-          FEEDS.forEach(f => {
-            statusMap[f.title] = 'success';
-          });
-          setFeedStatus(statusMap);
-          setLoading(false);
-          return;
+          if (validCached.length > 0) {
+            setArticles(validCached);
+            
+            const statusMap: Record<string, 'success'> = {};
+            feedsToFetch.forEach(f => {
+              statusMap[f.title] = 'success';
+            });
+            setFeedStatus(statusMap);
+            setLoading(false);
+            return;
+          }
         } catch (e) {
           console.warn("Failed to parse cached articles, fetching fresh:", e);
         }
@@ -54,38 +97,37 @@ export const App: React.FC = () => {
 
     // Reset status and list
     const initialStatus: Record<string, 'loading'> = {};
-    FEEDS.forEach(f => {
+    feedsToFetch.forEach(f => {
       initialStatus[f.title] = 'loading';
     });
     setFeedStatus(initialStatus);
     
-    if (force) {
-      // Keep existing list on refresh
-    } else {
+    if (!force) {
       setArticles([]);
     }
 
     const loadedArticles: Article[] = [];
+    const statusUpdates: Record<string, 'success' | 'error'> = {};
     
-    // Fetch all feeds in parallel, append items, and update status
+    // Fetch all active feeds in parallel
     await Promise.all(
-      FEEDS.map(async (feed) => {
+      feedsToFetch.map(async (feed) => {
         try {
           const feedArts = await fetchFeedArticles(feed);
           loadedArticles.push(...feedArts);
-          
-          // Re-sort current articles by date descending
-          loadedArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-          
-          // Set state incrementally to make UI responsive
-          setArticles([...loadedArticles]);
-          setFeedStatus(prev => ({ ...prev, [feed.title]: 'success' }));
+          statusUpdates[feed.title] = 'success';
         } catch (err) {
           console.error(`Error loading feed ${feed.title}:`, err);
-          setFeedStatus(prev => ({ ...prev, [feed.title]: 'error' }));
+          statusUpdates[feed.title] = 'error';
         }
       })
     );
+
+    // Sort final list by date descending once
+    loadedArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+    
+    setArticles(loadedArticles);
+    setFeedStatus(prev => ({ ...prev, ...statusUpdates }));
 
     // Save final list to sessionStorage
     sessionStorage.setItem('feedmind_articles', JSON.stringify(loadedArticles));
@@ -95,28 +137,82 @@ export const App: React.FC = () => {
 
   // Initial load and periodic refresh
   useEffect(() => {
-    fetchArticles();
+    const init = async () => {
+      const activeFeeds = await loadFeeds();
+      await fetchArticles(false, activeFeeds);
+    };
+    init();
 
     // Auto-refresh feeds every 5 minutes
-    const interval = setInterval(() => {
-      fetchArticles(true);
+    const interval = setInterval(async () => {
+      const activeFeeds = await loadFeedsConfig();
+      await fetchArticles(true, activeFeeds);
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Filter articles based on active category
-  const filteredArticles = activeCategory === 'All'
-    ? articles
-    : articles.filter(art => art.category === activeCategory);
+  // Feed Actions
+  const handleAddFeed = async (newFeed: FeedConfig) => {
+    await addCustomFeed(newFeed);
+    const updated = await loadFeeds();
+    await fetchArticles(true, updated);
+  };
+
+  const handleDeleteFeed = async (url: string) => {
+    await removeCustomFeed(url);
+    const updated = await loadFeeds();
+    await fetchArticles(true, updated);
+  };
+
+  const handleResetFeeds = async () => {
+    const updated = await resetDefaultFeeds();
+    setFeeds(updated);
+    await fetchArticles(true, updated);
+  };
+
+  // Calculate read time minutes
+  const getReadTimeMins = (art: Article) => {
+    const text = (art.content || art.contentSnippet || '').replace(/<[^>]*>/g, '');
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    return Math.ceil(wordCount / 220);
+  };
+
+  // Filter, sort, and cluster articles using useMemo to optimize rendering performance
+  const clusteredArticles = React.useMemo(() => {
+    const filtered = articles.filter(art => {
+      const matchesCategory = activeCategory === 'All' || art.category === activeCategory;
+      const matchesSearch = searchQuery.trim() === '' || 
+        art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        art.contentSnippet.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        art.feedTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        art.creator.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime();
+      }
+      if (sortBy === 'readTime') {
+        return getReadTimeMins(b) - getReadTimeMins(a);
+      }
+      return 0;
+    });
+
+    return clusterArticles(sorted);
+  }, [articles, activeCategory, searchQuery, sortBy]);
 
   const handleSelectArticle = (article: Article) => {
     setSelectedArticle(article);
     setIsReaderOpen(true);
   };
 
-  const totalPages = Math.ceil(filteredArticles.length / pageSize);
-  const paginatedArticles = filteredArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalPages = Math.ceil(clusteredArticles.length / pageSize);
+  const paginatedArticles = clusteredArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const renderPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -180,8 +276,8 @@ export const App: React.FC = () => {
         activeCategory={activeCategory}
         onSelectCategory={setActiveCategory}
         feedStatus={feedStatus}
-        feeds={FEEDS}
-        onOpenManageFeeds={() => {}}
+        feeds={feeds}
+        onOpenManageFeeds={() => setIsSettingsOpen(true)}
       />
 
       {/* Main Dashboard Area */}
@@ -192,11 +288,39 @@ export const App: React.FC = () => {
               {activeCategory} Articles
             </h2>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              {loading ? 'Syncing articles...' : `Showing ${filteredArticles.length} articles from ${FEEDS.filter(f => activeCategory === 'All' || f.category === activeCategory).length} sources`}
+              {loading ? 'Syncing articles...' : `Showing ${clusteredArticles.length} stories from ${feeds.filter(f => activeCategory === 'All' || f.category === activeCategory).length} sources`}
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* Global Search Bar */}
+          <div className="search-bar-container">
+            <Search size={16} className="search-bar-icon" />
+            <input
+              type="text"
+              placeholder="Search stories, feeds, authors..."
+              className="search-bar-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="search-clear-btn" aria-label="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* Sorting controls */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="sort-select"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="readTime">Reading Time</option>
+            </select>
+
             {/* Refresh Button */}
             <button
               onClick={() => fetchArticles(true)}
@@ -229,7 +353,7 @@ export const App: React.FC = () => {
                 </div>
               ))}
             </div>
-          ) : filteredArticles.length === 0 ? (
+          ) : clusteredArticles.length === 0 ? (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -241,7 +365,7 @@ export const App: React.FC = () => {
             }}>
               <Newspaper size={48} style={{ color: 'var(--bg-accent)', strokeWidth: 1.5 }} />
               <h3 style={{ color: '#fff' }}>No articles found</h3>
-              <p style={{ fontSize: '0.85rem' }}>Failed to retrieve articles or category is empty.</p>
+              <p style={{ fontSize: '0.85rem' }}>Failed to retrieve articles or search filter is empty.</p>
               <button className="btn btn-primary" onClick={() => fetchArticles(true)}>
                 Try Syncing Feeds
               </button>
@@ -263,7 +387,7 @@ export const App: React.FC = () => {
               {totalPages > 1 && (
                 <div className="pagination-container glass">
                   <div className="pagination-info">
-                    Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredArticles.length)}</strong>–<strong>{Math.min(currentPage * pageSize, filteredArticles.length)}</strong> of <strong>{filteredArticles.length}</strong> articles
+                    Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, clusteredArticles.length)}</strong>–<strong>{Math.min(currentPage * pageSize, clusteredArticles.length)}</strong> of <strong>{clusteredArticles.length}</strong> stories
                   </div>
                   
                   <div className="pagination-controls">
@@ -310,6 +434,16 @@ export const App: React.FC = () => {
         </section>
       </main>
 
+      {/* Settings Panel Modal */}
+      <ManageFeedsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        feeds={feeds}
+        onAddFeed={handleAddFeed}
+        onDeleteFeed={handleDeleteFeed}
+        onResetDefaults={handleResetFeeds}
+      />
+
       {/* Article Reader Slide-over drawer */}
       <ReaderPanel
         article={selectedArticle}
@@ -317,6 +451,11 @@ export const App: React.FC = () => {
         onClose={() => {
           setIsReaderOpen(false);
           setSelectedArticle(null);
+        }}
+        onOpenSettings={() => {
+          setIsReaderOpen(false);
+          setSelectedArticle(null);
+          setIsSettingsOpen(true);
         }}
       />
     </div>
