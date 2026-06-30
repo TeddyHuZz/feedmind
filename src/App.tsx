@@ -3,13 +3,11 @@ import { FeedSidebar } from './components/FeedSidebar';
 import { ArticleCard } from './components/ArticleCard';
 import { ReaderPanel } from './components/ReaderPanel';
 import { FEEDS, Article, fetchFeedArticles } from './utils/feed';
-import { clusterArticles, Cluster } from './utils/clustering';
-import { RefreshCw, Newspaper, Cpu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Newspaper, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [articles, setArticles] = useState<Article[]>([]);
-  const [clusters, setClusters] = useState<Cluster[]>([]);
   const [feedStatus, setFeedStatus] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -20,34 +18,10 @@ export const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // AI & summarizer worker state
-  const [isAiInitialized, setIsAiInitialized] = useState(false);
-  const [aiProgress, setAiProgress] = useState({
-    status: '',
-    progress: 0,
-    fileName: '',
-    visible: false
-  });
-
-  // Grouped Mode toggle from localStorage (defaults to true)
-  const [isGroupedMode, setIsGroupedMode] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('feedmind_grouped');
-      return saved !== null ? JSON.parse(saved) : true;
-    } catch {
-      return true;
-    }
-  });
-
-  // Persist Grouped Mode settings
-  useEffect(() => {
-    localStorage.setItem('feedmind_grouped', JSON.stringify(isGroupedMode));
-  }, [isGroupedMode]);
-
-  // Reset page when category, mode, or articles change
+  // Reset page when category or articles change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeCategory, isGroupedMode, articles]);
+  }, [activeCategory, articles]);
 
   // Load feeds incrementally
   const fetchArticles = async (force = false) => {
@@ -136,46 +110,13 @@ export const App: React.FC = () => {
     ? articles
     : articles.filter(art => art.category === activeCategory);
 
-  // Group / Cluster articles when list or mode changes
-  useEffect(() => {
-    if (filteredArticles.length === 0) {
-      setClusters([]);
-      return;
-    }
-
-    if (isGroupedMode) {
-      clusterArticles(filteredArticles)
-        .then(grouped => {
-          setClusters(grouped);
-        })
-        .catch(err => {
-          console.error("Clustering failed, using flat view:", err);
-          // Fallback to flat view (1 item per cluster)
-          const flat = filteredArticles.map(art => ({
-            id: `c_${art.id}`,
-            leadArticle: art,
-            articles: [art]
-          }));
-          setClusters(flat);
-        });
-    } else {
-      // Flat list
-      const flat = filteredArticles.map(art => ({
-        id: `c_${art.id}`,
-        leadArticle: art,
-        articles: [art]
-      }));
-      setClusters(flat);
-    }
-  }, [filteredArticles, isGroupedMode]);
-
   const handleSelectArticle = (article: Article) => {
     setSelectedArticle(article);
     setIsReaderOpen(true);
   };
 
-  const totalPages = Math.ceil(clusters.length / pageSize);
-  const paginatedClusters = clusters.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalPages = Math.ceil(filteredArticles.length / pageSize);
+  const paginatedArticles = filteredArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const renderPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -239,7 +180,8 @@ export const App: React.FC = () => {
         activeCategory={activeCategory}
         onSelectCategory={setActiveCategory}
         feedStatus={feedStatus}
-        aiProgress={aiProgress}
+        feeds={FEEDS}
+        onOpenManageFeeds={() => {}}
       />
 
       {/* Main Dashboard Area */}
@@ -255,51 +197,6 @@ export const App: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {/* Semantic Clustering Toggle */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              background: 'var(--bg-accent)', 
-              borderRadius: '9999px',
-              padding: '0.2rem',
-              border: '1px solid var(--border-color)'
-            }}>
-              <button
-                className="btn"
-                onClick={() => setIsGroupedMode(true)}
-                style={{
-                  padding: '0.35rem 0.85rem',
-                  fontSize: '0.75rem',
-                  borderRadius: '9999px',
-                  background: isGroupedMode ? 'var(--color-primary)' : 'transparent',
-                  color: isGroupedMode ? '#fff' : 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                <Cpu size={12} />
-                Grouped Stories
-              </button>
-              <button
-                className="btn"
-                onClick={() => setIsGroupedMode(false)}
-                style={{
-                  padding: '0.35rem 0.85rem',
-                  fontSize: '0.75rem',
-                  borderRadius: '9999px',
-                  background: !isGroupedMode ? 'var(--color-primary)' : 'transparent',
-                  color: !isGroupedMode ? '#fff' : 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                <Newspaper size={12} />
-                Timeline View
-              </button>
-            </div>
-
             {/* Refresh Button */}
             <button
               onClick={() => fetchArticles(true)}
@@ -350,15 +247,14 @@ export const App: React.FC = () => {
               </button>
             </div>
           ) : (
-            // Render articles or semantic clusters
+            // Render articles
             <>
               <div className="article-grid">
-                {paginatedClusters.map((cluster) => (
+                {paginatedArticles.map((article) => (
                   <ArticleCard
-                    key={cluster.id}
-                    cluster={cluster}
+                    key={article.id}
+                    article={article}
                     onSelectArticle={handleSelectArticle}
-                    isGroupedMode={isGroupedMode}
                   />
                 ))}
               </div>
@@ -367,7 +263,7 @@ export const App: React.FC = () => {
               {totalPages > 1 && (
                 <div className="pagination-container glass">
                   <div className="pagination-info">
-                    Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, clusters.length)}</strong>–<strong>{Math.min(currentPage * pageSize, clusters.length)}</strong> of <strong>{clusters.length}</strong> {isGroupedMode ? 'stories' : 'articles'}
+                    Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredArticles.length)}</strong>–<strong>{Math.min(currentPage * pageSize, filteredArticles.length)}</strong> of <strong>{filteredArticles.length}</strong> articles
                   </div>
                   
                   <div className="pagination-controls">
@@ -422,10 +318,6 @@ export const App: React.FC = () => {
           setIsReaderOpen(false);
           setSelectedArticle(null);
         }}
-        isAiInitialized={isAiInitialized}
-        setIsAiInitialized={setIsAiInitialized}
-        aiProgress={aiProgress}
-        setAiProgress={setAiProgress}
       />
     </div>
   );

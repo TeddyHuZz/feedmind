@@ -1,13 +1,11 @@
 import React from 'react';
 import { Sparkles, Code, Globe, Layers, CheckCircle2, AlertCircle, RefreshCw, Settings, BookOpen } from 'lucide-react';
 import { FeedConfig } from '../utils/feed';
-import { AIProgress } from './AIProgress';
 
 interface FeedSidebarProps {
   activeCategory: string;
   onSelectCategory: (category: string) => void;
   feedStatus: Record<string, 'loading' | 'success' | 'error'>;
-  aiProgress: { status: string; progress: number; fileName: string; visible: boolean };
   feeds: FeedConfig[];
   onOpenManageFeeds: () => void;
 }
@@ -16,7 +14,6 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
   activeCategory,
   onSelectCategory,
   feedStatus,
-  aiProgress,
   feeds,
   onOpenManageFeeds
 }) => {
@@ -139,8 +136,6 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({
           })}
         </div>
       </div>
-
-      <AIProgress {...aiProgress} />
     </aside>
   );
 };

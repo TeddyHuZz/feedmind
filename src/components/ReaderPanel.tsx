@@ -1,37 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ExternalLink, Sparkles, BookOpen } from 'lucide-react';
+import { X, ExternalLink, BookOpen } from 'lucide-react';
 import { Article, fetchFullArticleText, FullArticle } from '../utils/feed';
-import { initAI, summarizeText } from '../utils/ai';
 
 interface ReaderPanelProps {
   article: Article | null;
   isOpen: boolean;
   onClose: () => void;
-  isAiInitialized: boolean;
-  setIsAiInitialized: (val: boolean) => void;
-  aiProgress: { status: string; progress: number; fileName: string; visible: boolean };
-  setAiProgress: (val: any) => void;
 }
 
 export const ReaderPanel: React.FC<ReaderPanelProps> = ({
   article,
   isOpen,
-  onClose,
-  isAiInitialized,
-  setIsAiInitialized,
-  aiProgress,
-  setAiProgress
+  onClose
 }) => {
   const [fullArticle, setFullArticle] = useState<FullArticle | null>(null);
   const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summarizing, setSummarizing] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && article) {
       setFullArticle(null);
-      setSummary(null);
       setLoading(true);
       
       // Scroll reader body back to top
@@ -58,54 +46,6 @@ export const ReaderPanel: React.FC<ReaderPanelProps> = ({
         });
     }
   }, [isOpen, article]);
-
-  const handleSummarize = async () => {
-    if (!article || !fullArticle) return;
-    
-    setSummarizing(true);
-    setSummary(null);
-    
-    try {
-      if (!isAiInitialized) {
-        setAiProgress({ 
-          status: "Initializing summarizer model...", 
-          progress: 0, 
-          fileName: "", 
-          visible: true 
-        });
-        
-        await initAI((progressData) => {
-          setAiProgress({
-            status: `Downloading AI files...`,
-            progress: progressData.progress,
-            fileName: progressData.file,
-            visible: true
-          });
-        });
-        
-        setIsAiInitialized(true);
-        setAiProgress({ status: "", progress: 100, fileName: "", visible: false });
-      }
-
-      setAiProgress({ 
-        status: "Analyzing and generating AI Summary...", 
-        progress: 0, 
-        fileName: "", 
-        visible: true 
-      });
-      
-      const textToSummarize = fullArticle.textContent || article.contentSnippet;
-      const aiSummary = await summarizeText(textToSummarize);
-      setSummary(aiSummary);
-      setAiProgress({ status: "", progress: 100, fileName: "", visible: false });
-    } catch (err: any) {
-      console.error("AI Summarization failed:", err);
-      setSummary(`Failed to generate summary: ${err.message || 'The AI model took too long to initialize.'}`);
-      setAiProgress({ status: "", progress: 0, fileName: "", visible: false });
-    } finally {
-      setSummarizing(false);
-    }
-  };
 
   if (!isOpen || !article) return null;
 
@@ -199,63 +139,6 @@ export const ReaderPanel: React.FC<ReaderPanelProps> = ({
                   </a>
                 </div>
               </div>
-
-              <div 
-                style={{ 
-                  borderBottom: '1px solid var(--border-color)', 
-                  margin: '0.5rem 0' 
-                }}
-              ></div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button 
-                  className="btn btn-primary"
-                  onClick={handleSummarize}
-                  disabled={summarizing}
-                  style={{ 
-                    opacity: summarizing ? 0.7 : 1, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.5rem' 
-                  }}
-                >
-                  <Sparkles size={16} />
-                  {summarizing ? 'Analyzing Article...' : 'Summarize with AI'}
-                </button>
-              </div>
-
-              {(summarizing || summary) && (
-                <div className="ai-summary-box">
-                  <div className="ai-summary-title">
-                    <Sparkles 
-                      size={14} 
-                      style={{ 
-                        animation: summarizing ? 'pulse 1s infinite alternate' : 'none',
-                        color: 'var(--color-primary-hover)'
-                      }} 
-                    />
-                    <span>AI Executive Summary</span>
-                  </div>
-                  {summarizing && !summary ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {aiProgress.visible && (
-                        <div style={{ 
-                          fontSize: '0.75rem', 
-                          color: 'var(--color-primary-hover)', 
-                          marginBottom: '0.25rem' 
-                        }}>
-                          {aiProgress.status} ({Math.round(aiProgress.progress)}%)
-                        </div>
-                      )}
-                      <div className="shimmer" style={{ height: '0.9rem', width: '95%' }}></div>
-                      <div className="shimmer" style={{ height: '0.9rem', width: '90%' }}></div>
-                      <div className="shimmer" style={{ height: '0.9rem', width: '75%' }}></div>
-                    </div>
-                  ) : (
-                    <p className="ai-summary-text">{summary}</p>
-                  )}
-                </div>
-              )}
 
               <div 
                 className="reader-content" 
